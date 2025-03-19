@@ -6,52 +6,36 @@ import 'typing_indicator.dart';
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final int index;
-  final Function(int) onDelete;
 
-  const MessageBubble({
-    required this.message,
-    required this.index,
-    required this.onDelete,
-    super.key,
-  });
+  const MessageBubble({required this.message, required this.index, super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: Key(index.toString()),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDelete(index),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: Colors.redAccent,
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!message.isUser) ...[
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.teal[50],
-                child: Icon(Icons.smart_toy, size: 20, color: Colors.teal[700]),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Flexible(child: _buildMessageContainer(context)),
-            if (message.isUser) ...[
-              const SizedBox(width: 10),
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.teal[50],
-                child: Icon(Icons.person, size: 20, color: Colors.teal[700]),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment:
+            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!message.isUser) ...[
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.teal[50],
+              child: Icon(Icons.smart_toy, size: 20, color: Colors.teal[700]),
+            ),
+            const SizedBox(width: 10),
           ],
-        ),
+          Flexible(child: _buildMessageContainer(context)),
+          if (message.isUser) ...[
+            const SizedBox(width: 10),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.teal[50],
+              child: Icon(Icons.person, size: 20, color: Colors.teal[700]),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -60,15 +44,18 @@ class MessageBubble extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.all(14),
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.75,
+      ),
       decoration: BoxDecoration(
-        gradient: message.isUser
-            ? LinearGradient(
-                colors: [Colors.teal[600]!, Colors.teal[400]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
+        gradient:
+            message.isUser
+                ? LinearGradient(
+                  colors: [Colors.teal[600]!, Colors.teal[400]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+                : null,
         color: message.isUser ? null : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -78,7 +65,10 @@ class MessageBubble extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
-        border: !message.isUser ? Border.all(color: Colors.grey[200]!, width: 1) : null,
+        border:
+            !message.isUser
+                ? Border.all(color: Colors.grey[200]!, width: 1)
+                : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,7 +84,11 @@ class MessageBubble extends StatelessWidget {
               ),
               strong: const TextStyle(fontWeight: FontWeight.bold),
               em: const TextStyle(fontStyle: FontStyle.italic),
-              code: TextStyle(backgroundColor: Colors.grey[200], color: Colors.black87, fontFamily: 'monospace'),
+              code: TextStyle(
+                backgroundColor: Colors.grey[200],
+                color: Colors.black87,
+                fontFamily: 'monospace',
+              ),
             ),
             selectable: true,
           ),
