@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class GeminiAPIService {
-  static const String _apiKey =
-      "AIzaSyBeT-9koSPduFzyDa22NIFjmlaX4UDgLgc"; // Replace with your actual API key
+  static String get _apiKey =>
+      dotenv.env['CHAT_WITH_AI_API_KET'] ?? 'default_key_if_not_found';
   static const String _baseUrl =
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
@@ -29,7 +30,7 @@ class GeminiAPIService {
       var candidates = jsonResponse['candidates'];
 
       if (candidates != null && candidates.isNotEmpty) {
-        return candidates[0]['content']['parts'][0]['text']; 
+        return candidates[0]['content']['parts'][0]['text'];
       } else {
         return "No response from AI.";
       }

@@ -1,7 +1,9 @@
 import 'package:chat_gpt_screen/features/ai_chat/ui/chat_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+void main() async{
+  await dotenv.load(fileName: ".env");
   runApp(AIChatApp());
 }
 
