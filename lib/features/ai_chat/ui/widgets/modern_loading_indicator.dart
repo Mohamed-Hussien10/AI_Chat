@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class ModernLoadingIndicator extends StatefulWidget {
+  const ModernLoadingIndicator({super.key});
+
   @override
   _ModernLoadingIndicatorState createState() => _ModernLoadingIndicatorState();
 }

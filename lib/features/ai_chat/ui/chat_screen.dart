@@ -4,6 +4,7 @@ import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/message_bubble.dart'
 import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/modern_loading_indicator.dart';
 import 'package:chat_gpt_screen/features/ai_chat/data/gemini_services.dart';
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -17,6 +18,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
   bool _showScrollToBottom = false;
+  bool _isSendingCancelled = false;
+  Timer? _scrollDebounce; // Debounce timer for smoother scrolling
 
   @override
   void initState() {
@@ -49,6 +52,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 ChatInput(
                   onSendMessage: _sendMessage,
                   scrollToBottom: _scrollToBottom,
+                  isLoading: _isLoading,
+                  onCancel: _cancelSending,
                 ),
               ],
             ),
@@ -59,9 +64,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 child: FloatingActionButton(
                   mini: true,
                   backgroundColor: Colors.teal[600]?.withOpacity(0.9),
-                  onPressed: () {
-                    _scrollToBottom();
-                  },
+                  onPressed: _scrollToBottom,
                   tooltip: 'Scroll to bottom',
                   child: const Icon(Icons.arrow_downward, color: Colors.white),
                 ),
@@ -139,6 +142,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Widget _buildMessageList() {
     return SingleChildScrollView(
       controller: _scrollController,
+      physics: const BouncingScrollPhysics(), // Smoother scrolling feel
       child: Container(
         color: Colors.grey[50],
         padding: const EdgeInsets.all(16.0),
@@ -168,26 +172,37 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     setState(() {
       _messages.add(ChatMessage.user(message));
       _isLoading = true;
+      _isSendingCancelled = false;
     });
     _scrollToBottom();
 
     try {
       String aiResponse = await GeminiAPIService.getChatResponse(message);
+      if (_isSendingCancelled) return;
+
       setState(() {
-        _isLoading = false;
         _messages.add(ChatMessage.ai("", isTyping: true));
       });
-      _typeMessage(aiResponse);
+      await _typeMessage(aiResponse);
+      if (!_isSendingCancelled) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _messages.add(ChatMessage.ai("Oops! Something went wrong. Try again."));
-      });
-      _scrollToBottom();
+      if (!_isSendingCancelled) {
+        setState(() {
+          _isLoading = false;
+          _messages.add(
+            ChatMessage.ai("Oops! Something went wrong. Try again."),
+          );
+        });
+        _scrollToBottom();
+      }
     }
   }
 
-  void _typeMessage(String fullResponse) async {
+  Future<void> _typeMessage(String fullResponse) async {
     int lastIndex = _messages.length - 1;
     List<String> lines = fullResponse.split('\n');
     String currentText = "";
@@ -195,6 +210,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     for (String line in lines) {
       String targetText = lines.sublist(0, lines.indexOf(line) + 1).join('\n');
       for (int i = 0; i < line.length; i++) {
+        if (_isSendingCancelled) return;
         await Future.delayed(const Duration(milliseconds: 1));
         if (mounted) {
           setState(() {
@@ -219,7 +235,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       }
     }
 
-    if (mounted) {
+    if (mounted && !_isSendingCancelled) {
       setState(() {
         _messages[lastIndex] = _messages[lastIndex].copyWith(
           text: fullResponse,
@@ -230,20 +246,50 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     }
   }
 
+  void _cancelSending() {
+    setState(() {
+      _isSendingCancelled = true;
+      _isLoading = false;
+      if (_messages.isNotEmpty && _messages.last.isTyping) {
+        _messages.last = _messages.last.copyWith(isTyping: false);
+      }
+    });
+  }
+
   bool _shouldAutoScroll() {
     if (!_scrollController.hasClients) return false;
     final position = _scrollController.position;
-    return position.pixels >= position.maxScrollExtent - 50;
+    // More generous threshold for auto-scrolling
+    return position.pixels >= position.maxScrollExtent - 100;
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    if (!_scrollController.hasClients) return;
+
+    // Cancel any existing debounce timer
+    _scrollDebounce?.cancel();
+
+    // Debounce the scroll to prevent lag from rapid updates
+    _scrollDebounce = Timer(const Duration(milliseconds: 50), () {
+      if (_scrollController.hasClients) {
+        final double target = _scrollController.position.maxScrollExtent;
+        _scrollController
+            .animateTo(
+              target,
+              duration: const Duration(
+                milliseconds: 400,
+              ), // Slightly longer for smoothness
+              curve: Curves.easeOutCubic, // Professional, smooth deceleration
+            )
+            .then((_) {
+              // Ensure we’re exactly at the bottom after animation
+              if (_scrollController.hasClients &&
+                  _scrollController.position.pixels != target) {
+                _scrollController.jumpTo(target);
+              }
+            });
+      }
+    });
   }
 
   void _deleteMessage(int index) {
@@ -260,6 +306,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _scrollDebounce?.cancel();
     _scrollController.removeListener(_updateScrollButtonVisibility);
     _scrollController.dispose();
     super.dispose();

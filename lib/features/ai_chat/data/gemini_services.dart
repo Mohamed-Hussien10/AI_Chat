@@ -29,7 +29,7 @@ class GeminiAPIService {
       var candidates = jsonResponse['candidates'];
 
       if (candidates != null && candidates.isNotEmpty) {
-        return candidates[0]['content']['parts'][0]['text']; // Extract AI response
+        return candidates[0]['content']['parts'][0]['text']; 
       } else {
         return "No response from AI.";
       }
