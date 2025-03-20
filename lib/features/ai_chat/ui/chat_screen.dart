@@ -213,7 +213,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _scrollToBottom();
 
     try {
-      String aiResponse = await _processFileUpload(fileBytes, fileName, prompt);
+      String aiResponse = await GeminiAPIService.processFile(
+        fileBytes,
+        fileName,
+        prompt,
+      );
       if (_isSendingCancelled) return;
 
       if (mounted) {
@@ -235,21 +239,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         });
         _scrollToBottom();
       }
-    }
-  }
-
-  Future<String> _processFileUpload(
-    Uint8List fileBytes,
-    String fileName,
-    String prompt,
-  ) async {
-    try {
-      // Assuming GeminiAPIService.processFile can handle both file and prompt
-      // If not, we'll simulate combining them here
-      String response = await GeminiAPIService.processFile(fileBytes, fileName);
-      return "$response\n\n(AI response to prompt: '$prompt' for file: $fileName)";
-    } catch (e) {
-      throw Exception("Failed to process file with Gemini API: $e");
     }
   }
 

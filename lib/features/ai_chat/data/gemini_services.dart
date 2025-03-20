@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 class GeminiAPIService {
   static String get _apiKey =>
       dotenv.env['CHAT_WITH_AI_API_KET'] ?? 'default_key_if_not_found';
-  // Updated to a model that supports multimodal input (images and potentially PDFs)
   static const String _baseUrl =
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
@@ -44,6 +43,7 @@ class GeminiAPIService {
   static Future<String> processFile(
     Uint8List fileBytes,
     String fileName,
+    String prompt,
   ) async {
     final Uri url = Uri.parse("$_baseUrl?key=$_apiKey");
 
@@ -53,12 +53,6 @@ class GeminiAPIService {
     }
 
     String base64Data = base64Encode(fileBytes);
-
-    // Customize the prompt based on file type
-    String prompt =
-        mimeType == 'application/pdf'
-            ? "Extract and summarize the text from this PDF: $fileName"
-            : "Describe this image: $fileName";
 
     final response = await http.post(
       url,
