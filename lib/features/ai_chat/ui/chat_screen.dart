@@ -1,10 +1,11 @@
+import 'package:chat_gpt_screen/features/ai_chat/data/gemini_services.dart';
 import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/chat_input.dart';
 import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/chat_model.dart';
 import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/message_bubble.dart';
 import 'package:chat_gpt_screen/features/ai_chat/ui/widgets/modern_loading_indicator.dart';
-import 'package:chat_gpt_screen/features/ai_chat/data/gemini_services.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:typed_data';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -51,6 +52,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 Expanded(child: _buildChatArea()),
                 ChatInput(
                   onSendMessage: _sendMessage,
+                  onFileUpload: _handleFileUpload,
                   scrollToBottom: _scrollToBottom,
                   isLoading: _isLoading,
                   onCancel: _cancelSending,
@@ -126,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             Icon(Icons.chat_bubble_outline, size: 40, color: Colors.grey[400]),
             const SizedBox(height: 10),
             Text(
-              "Start chatting with AI!",
+              "Start chatting or upload a file!",
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey[600],
@@ -152,7 +154,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               (entry) => MessageBubble(message: entry.value, index: entry.key),
             ),
             if (_isLoading)
-              Align(
+              const Align(
                 alignment: Alignment.centerLeft,
                 child: ModernLoadingIndicator(),
               ),
@@ -189,41 +191,90 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       if (!_isSendingCancelled) {
         setState(() {
           _isLoading = false;
-          _messages.add(
-            ChatMessage.ai("Oops! Something went wrong. Try again."),
-          );
+          _messages.add(ChatMessage.ai("Oops! Something went wrong: $e"));
         });
         _scrollToBottom();
       }
     }
   }
 
+  void _handleFileUpload(
+    Uint8List fileBytes,
+    String fileName,
+    String prompt,
+  ) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _messages.add(ChatMessage.user("$prompt\n(File: $fileName)"));
+      _isLoading = true;
+      _isSendingCancelled = false;
+    });
+    _scrollToBottom();
+
+    try {
+      String aiResponse = await _processFileUpload(fileBytes, fileName, prompt);
+      if (_isSendingCancelled) return;
+
+      if (mounted) {
+        setState(() {
+          _messages.add(ChatMessage.ai("", isTyping: true));
+        });
+        await _typeMessage(aiResponse);
+        if (!_isSendingCancelled && mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (!_isSendingCancelled && mounted) {
+        setState(() {
+          _isLoading = false;
+          _messages.add(ChatMessage.ai("Error processing file: $e"));
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Future<String> _processFileUpload(
+    Uint8List fileBytes,
+    String fileName,
+    String prompt,
+  ) async {
+    try {
+      // Assuming GeminiAPIService.processFile can handle both file and prompt
+      // If not, we'll simulate combining them here
+      String response = await GeminiAPIService.processFile(fileBytes, fileName);
+      return "$response\n\n(AI response to prompt: '$prompt' for file: $fileName)";
+    } catch (e) {
+      throw Exception("Failed to process file with Gemini API: $e");
+    }
+  }
+
   Future<void> _typeMessage(String fullResponse) async {
     int lastIndex = _messages.length - 1;
     List<String> lines = fullResponse.split('\n');
-    const int batchSize = 10; // Process 10 characters at a time
+    const int batchSize = 10;
     String currentText = "";
 
     for (String line in lines) {
       String targetText = lines.sublist(0, lines.indexOf(line) + 1).join('\n');
       for (int i = 0; i < line.length; i += batchSize) {
-        if (_isSendingCancelled) return;
+        if (_isSendingCancelled || !mounted) return;
         int end = (i + batchSize > line.length) ? line.length : i + batchSize;
         currentText = targetText.substring(
           0,
           targetText.length - (line.length - end),
         );
-        if (mounted) {
-          setState(() {
-            _messages[lastIndex] = _messages[lastIndex].copyWith(
-              text: currentText,
-            );
-          });
-          if (_shouldAutoScroll()) _scrollToBottom(predictive: true);
-        }
-        await Future.delayed(
-          const Duration(milliseconds: 5),
-        ); // Faster, minimal delay
+        setState(() {
+          _messages[lastIndex] = _messages[lastIndex].copyWith(
+            text: currentText,
+          );
+        });
+        if (_shouldAutoScroll()) _scrollToBottom(predictive: true);
+        await Future.delayed(const Duration(milliseconds: 5));
       }
     }
 
@@ -234,7 +285,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           isTyping: false,
         );
       });
-      _scrollToBottom(predictive: false); // Final precise scroll
+      _scrollToBottom(predictive: false);
     }
   }
 
@@ -251,8 +302,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   bool _shouldAutoScroll() {
     if (!_scrollController.hasClients) return false;
     final position = _scrollController.position;
-    return position.pixels >=
-        position.maxScrollExtent - 150; // Increased threshold
+    return position.pixels >= position.maxScrollExtent - 150;
   }
 
   void _scrollToBottom({bool predictive = false}) {
@@ -260,19 +310,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     _scrollDebounce?.cancel();
     _scrollDebounce = Timer(const Duration(milliseconds: 20), () {
-      // Reduced debounce delay
       if (_scrollController.hasClients) {
         final double target =
             _scrollController.position.maxScrollExtent + (predictive ? 50 : 0);
         if (predictive) {
-          // Predictive scroll: overshoot slightly to anticipate content growth
           _scrollController.animateTo(
             target,
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutQuad,
           );
         } else {
-          // Precise scroll: go exactly to the bottom
           _scrollController
               .animateTo(
                 target,
